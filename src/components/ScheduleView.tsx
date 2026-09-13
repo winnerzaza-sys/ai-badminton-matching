@@ -51,12 +51,21 @@ function RoundContent({ round, playerMap }: { round: Round; playerMap: Map<strin
 }
 
 export function ScheduleView({ schedule, players, validation, isGenerating }: ScheduleViewProps) {
-  const [openRound, setOpenRound] = useState(1);
+  const [openRounds, setOpenRounds] = useState<Set<number>>(new Set());
   const playerMap = useMemo(() => new Map(players.map((player) => [player.id, player])), [players]);
 
   useEffect(() => {
-    setOpenRound(1);
-  }, [schedule?.id]);
+    setOpenRounds(new Set(schedule?.rounds.map((round) => round.round) ?? []));
+  }, [schedule]);
+
+  const toggleRound = (roundNumber: number) => {
+    setOpenRounds((current) => {
+      const next = new Set(current);
+      if (next.has(roundNumber)) next.delete(roundNumber);
+      else next.add(roundNumber);
+      return next;
+    });
+  };
 
   if (isGenerating) {
     return (
@@ -96,14 +105,14 @@ export function ScheduleView({ schedule, players, validation, isGenerating }: Sc
 
       <div className="round-list">
         {schedule.rounds.map((round) => {
-          const isOpen = openRound === round.round;
+          const isOpen = openRounds.has(round.round);
           return (
             <article className={`round-card ${isOpen ? 'open' : ''}`} key={round.round}>
               <button
                 type="button"
                 className="round-trigger"
                 aria-expanded={isOpen}
-                onClick={() => setOpenRound(isOpen ? 0 : round.round)}
+                onClick={() => toggleRound(round.round)}
               >
                 <strong>รอบที่ {round.round}</strong>
                 <span>{round.courts.length} คอร์ท</span>
