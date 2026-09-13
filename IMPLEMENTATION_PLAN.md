@@ -261,7 +261,7 @@ Summary
 Primary actions should be easy to reach with one hand.
 
 Do not show all advanced settings at once.
-
+f
 ## iPad Portrait
 
 Suggested breakpoint:

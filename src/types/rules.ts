@@ -2,6 +2,7 @@ export interface RuleConfig {
   avoidRepeatedPartners: boolean;
   avoidRepeatedOpponents: boolean;
   avoidThreeMaleOneFemale: boolean;
+  avoidTwoMaleSameTeam: boolean;
   spreadRest: boolean;
   avoidConsecutiveGames: boolean;
   prioritizeLongestRest: boolean;

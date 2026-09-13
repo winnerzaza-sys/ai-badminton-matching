@@ -15,6 +15,7 @@ export const defaultRules: RuleConfig = {
   avoidRepeatedPartners: true,
   avoidRepeatedOpponents: true,
   avoidThreeMaleOneFemale: true,
+  avoidTwoMaleSameTeam: true,
   spreadRest: true,
   avoidConsecutiveGames: true,
   prioritizeLongestRest: true,
@@ -23,6 +24,21 @@ export const defaultRules: RuleConfig = {
 };
 
 export const defaultPlayers: Player[] = [
+  { id: 'seed-1', name: 'วิน', gender: 'male' },
+  { id: 'seed-2', name: 'ออม', gender: 'male' },
+  { id: 'seed-3', name: 'ต้น', gender: 'male' },
+  { id: 'seed-4', name: 'พี่เขียน', gender: 'male' },
+  { id: 'seed-5', name: 'เซฟ', gender: 'male' },
+  { id: 'seed-6', name: 'โบว์', gender: 'female' },
+  { id: 'seed-7', name: 'มุก', gender: 'female' },
+  { id: 'seed-8', name: 'ฟ้า', gender: 'female' },
+  { id: 'seed-9', name: 'พลอย', gender: 'female' },
+  { id: 'seed-10', name: 'โรส', gender: 'female' },
+  { id: 'seed-11', name: 'นัท', gender: 'female' },
+  { id: 'seed-12', name: 'ยุ้ย', gender: 'female' },
+];
+
+const legacyDefaultPlayers: Player[] = [
   { id: 'seed-1', name: 'พี่เขียน', gender: 'male' },
   { id: 'seed-2', name: 'โรส', gender: 'female' },
   { id: 'seed-3', name: 'โบว์', gender: 'female' },
@@ -32,6 +48,17 @@ export const defaultPlayers: Player[] = [
   { id: 'seed-7', name: 'ฝน', gender: 'female' },
   { id: 'seed-8', name: 'เก่ง', gender: 'male' },
 ];
+
+function isLegacyDefaultRoster(players: unknown): players is Player[] {
+  return Array.isArray(players) &&
+    players.length === legacyDefaultPlayers.length &&
+    legacyDefaultPlayers.every((legacyPlayer, index) => {
+      const player = players[index] as Partial<Player> | undefined;
+      return player?.id === legacyPlayer.id &&
+        player.name === legacyPlayer.name &&
+        player.gender === legacyPlayer.gender;
+    });
+}
 
 export const defaultSession: SessionState = {
   players: defaultPlayers,
@@ -47,8 +74,11 @@ function loadSession(): SessionState {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return defaultSession;
     const parsed = JSON.parse(raw) as Partial<SessionState>;
+    const savedPlayers = isLegacyDefaultRoster(parsed.players)
+      ? defaultPlayers
+      : parsed.players;
     return {
-      players: Array.isArray(parsed.players) ? parsed.players : defaultPlayers,
+      players: Array.isArray(savedPlayers) ? savedPlayers : defaultPlayers,
       courts: typeof parsed.courts === 'number' ? parsed.courts : 1,
       rules: { ...defaultRules, ...parsed.rules },
       fairnessMode: parsed.fairnessMode === 'exact' ? 'exact' : 'balanced',

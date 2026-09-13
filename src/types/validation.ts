@@ -14,6 +14,7 @@ export interface ScheduleQuality {
   repeatedOpponents: number;
   maxConsecutiveGames: number;
   threeMaleOneFemaleMatches: number;
+  maleMaleTeams: number;
   restSpread: number;
 }
 

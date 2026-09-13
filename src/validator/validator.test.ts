@@ -104,3 +104,38 @@ describe('validateSchedule fairness checks', () => {
     expect(result.errors.some((issue) => issue.code === 'EXACT_GAME_COUNT_MISMATCH')).toBe(true);
   });
 });
+
+describe('male partner preference', () => {
+  it('avoids putting two men on the same team when mixed pairing is possible', async () => {
+    const input = inputFor(4);
+    input.players = [
+      { id: 'p1', name: 'M1', gender: 'male' },
+      { id: 'p2', name: 'M2', gender: 'male' },
+      { id: 'p3', name: 'F1', gender: 'female' },
+      { id: 'p4', name: 'F2', gender: 'female' },
+    ];
+    const schedule = await new MockScheduleGenerator().generate(input);
+    const playerById = new Map(input.players.map((player) => [player.id, player]));
+
+    schedule.rounds.forEach((round) => {
+      round.courts.forEach((court) => {
+        [court.teamA, court.teamB].forEach((team) => {
+          const maleCount = team.filter((id) => playerById.get(id)?.gender === 'male').length;
+          expect(maleCount).toBeLessThan(2);
+        });
+      });
+    });
+    expect(validateSchedule(schedule, input).quality.maleMaleTeams).toBe(0);
+  });
+
+  it('reports a quality warning when a male-male team is unavoidable', async () => {
+    const input = inputFor(4);
+    input.players = input.players.map((player) => ({ ...player, gender: 'male' }));
+    const schedule = await new MockScheduleGenerator().generate(input);
+    const result = validateSchedule(schedule, input);
+
+    expect(result.valid).toBe(true);
+    expect(result.quality.maleMaleTeams).toBe(4);
+    expect(result.warnings.some((warning) => warning.code === 'TWO_MALE_SAME_TEAM')).toBe(true);
+  });
+});

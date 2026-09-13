@@ -26,12 +26,17 @@ export function analyzeScheduleQuality(
     constraints?.fixedPairs?.map((pair) => pairKey(pair.playerAId, pair.playerBId)) ?? [],
   );
   let threeMaleOneFemaleMatches = 0;
+  let maleMaleTeams = 0;
 
   schedule.rounds.forEach((round) => {
     round.courts.forEach((court) => {
       [court.teamA, court.teamB].forEach(([a, b]) => {
         const key = pairKey(a, b);
         partnerCounts.set(key, (partnerCounts.get(key) ?? 0) + 1);
+        const isMaleMale =
+          playerById.get(a)?.gender === 'male' &&
+          playerById.get(b)?.gender === 'male';
+        if (isMaleMale && !fixedPairKeys.has(key)) maleMaleTeams += 1;
       });
       court.teamA.forEach((a) => {
         court.teamB.forEach((b) => {
@@ -107,6 +112,13 @@ export function analyzeScheduleQuality(
       severity: 'warning',
     });
   }
+  if (rules.avoidTwoMaleSameTeam && maleMaleTeams > 0) {
+    warnings.push({
+      code: 'TWO_MALE_SAME_TEAM',
+      message: `มีชาย 2 คนอยู่ฝั่งเดียวกัน ${maleMaleTeams} ครั้ง`,
+      severity: 'warning',
+    });
+  }
 
   return {
     quality: {
@@ -114,6 +126,7 @@ export function analyzeScheduleQuality(
       repeatedOpponents,
       maxConsecutiveGames,
       threeMaleOneFemaleMatches,
+      maleMaleTeams,
       restSpread,
     },
     warnings,

@@ -59,6 +59,7 @@ export function ScheduleSummary(props: ScheduleSummaryProps) {
             <dl>
               <div><dt><span>⌘</span> คู่ซ้ำ</dt><dd>{props.validation.quality.repeatedPartners} ครั้ง</dd></div>
               <div><dt><span>⌁</span> คู่แข่งเดิมซ้ำ</dt><dd>{props.validation.quality.repeatedOpponents} ครั้ง</dd></div>
+              <div><dt><span>♂</span> ชายคู่ชาย</dt><dd>{props.validation.quality.maleMaleTeams} ครั้ง</dd></div>
               <div><dt><span>◴</span> เล่นติดกันสูงสุด</dt><dd>{props.validation.quality.maxConsecutiveGames} รอบ</dd></div>
               <div><dt><span>♙</span> การกระจายพัก</dt><dd>{props.validation.quality.restSpread <= 1 ? 'ดี' : 'ควรปรับ'}</dd></div>
             </dl>

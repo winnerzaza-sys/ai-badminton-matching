@@ -23,7 +23,10 @@ const ruleGroups: Array<{ title: string; items: Array<[keyof RuleConfig, string]
   },
   {
     title: 'กติกาเรื่องเพศ',
-    items: [['avoidThreeMaleOneFemale', 'เลี่ยง 3 ชาย 1 หญิง']],
+    items: [
+      ['avoidThreeMaleOneFemale', 'เลี่ยง 3 ชาย 1 หญิง'],
+      ['avoidTwoMaleSameTeam', 'เลี่ยงชาย 2 คนอยู่ฝั่งเดียวกัน'],
+    ],
   },
   {
     title: 'การพักและความต่อเนื่อง',

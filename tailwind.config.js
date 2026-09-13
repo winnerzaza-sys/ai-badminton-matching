@@ -18,7 +18,8 @@ export default {
         cta: '0 12px 24px rgba(21, 154, 102, 0.24)',
       },
       fontFamily: {
-        sans: ['Inter', 'Noto Sans Thai', 'Leelawadee UI', 'Tahoma', 'sans-serif'],
+        sans: ['Sarabun', 'Noto Sans Thai', 'Leelawadee UI', 'Tahoma', 'sans-serif'],
+        heading: ['Prompt', 'Noto Sans Thai', 'Leelawadee UI', 'Tahoma', 'sans-serif'],
       },
     },
   },

@@ -6,6 +6,58 @@ import type {
   ScheduleInput,
 } from '../types';
 
+function interleaveByGender(players: ScheduleInput['players']) {
+  const male = players.filter((player) => player.gender === 'male');
+  const female = players.filter((player) => player.gender === 'female');
+  const interleaved: ScheduleInput['players'] = [];
+  const length = Math.max(male.length, female.length);
+
+  for (let index = 0; index < length; index += 1) {
+    if (male[index]) interleaved.push(male[index]);
+    if (female[index]) interleaved.push(female[index]);
+  }
+
+  return interleaved;
+}
+
+function createTeams(
+  courtPlayers: string[],
+  playerById: Map<string, ScheduleInput['players'][number]>,
+  avoidTwoMaleSameTeam: boolean,
+  alternate: boolean,
+): Pick<CourtMatch, 'teamA' | 'teamB'> {
+  if (avoidTwoMaleSameTeam) {
+    const male = courtPlayers.filter((id) => playerById.get(id)?.gender === 'male');
+    const female = courtPlayers.filter((id) => playerById.get(id)?.gender === 'female');
+
+    if (male.length === 2 && female.length === 2) {
+      return alternate
+        ? { teamA: [male[0], female[1]], teamB: [male[1], female[0]] }
+        : { teamA: [male[0], female[0]], teamB: [male[1], female[1]] };
+    }
+    if (male.length === 1 && female.length === 3) {
+      const partnerIndex = alternate ? 1 : 0;
+      const remainingFemale = female.filter((_, index) => index !== partnerIndex);
+      return {
+        teamA: [male[0], female[partnerIndex]],
+        teamB: [remainingFemale[0], remainingFemale[1]],
+      };
+    }
+    if (male.length === 3 && female.length === 1) {
+      const partnerIndex = alternate ? 1 : 0;
+      const remainingMale = male.filter((_, index) => index !== partnerIndex);
+      return {
+        teamA: [male[partnerIndex], female[0]],
+        teamB: [remainingMale[0], remainingMale[1]],
+      };
+    }
+  }
+
+  return alternate
+    ? { teamA: [courtPlayers[0], courtPlayers[2]], teamB: [courtPlayers[1], courtPlayers[3]] }
+    : { teamA: [courtPlayers[0], courtPlayers[1]], teamB: [courtPlayers[2], courtPlayers[3]] };
+}
+
 /**
  * Deterministic stand-in for the future Qwen generator. It fills a rotating
  * window of player slots, which guarantees the pre-calculated fairness target.
@@ -19,8 +71,13 @@ export class MockScheduleGenerator implements ScheduleGenerator {
     }
 
     const ids = players.map((player) => player.id);
+    const playerById = new Map(players.map((player) => [player.id, player]));
+    const orderedPlayers = input.rules.avoidTwoMaleSameTeam
+      ? interleaveByGender(players)
+      : players;
+    const orderedIds = orderedPlayers.map((player) => player.id);
     const offset = ((variant % ids.length) + ids.length) % ids.length;
-    const rotated = [...ids.slice(offset), ...ids.slice(0, offset)];
+    const rotated = [...orderedIds.slice(offset), ...orderedIds.slice(0, offset)];
     const rounds: Round[] = [];
 
     for (let roundIndex = 0; roundIndex < fairness.totalRounds; roundIndex += 1) {
@@ -36,12 +93,12 @@ export class MockScheduleGenerator implements ScheduleGenerator {
           const swapTeams = (roundIndex + courtIndex + variant) % 2 === 1;
           return {
             court: courtIndex + 1,
-            teamA: swapTeams
-              ? [courtPlayers[0], courtPlayers[2]]
-              : [courtPlayers[0], courtPlayers[1]],
-            teamB: swapTeams
-              ? [courtPlayers[1], courtPlayers[3]]
-              : [courtPlayers[2], courtPlayers[3]],
+            ...createTeams(
+              courtPlayers,
+              playerById,
+              input.rules.avoidTwoMaleSameTeam,
+              swapTeams,
+            ),
           };
         },
       );
