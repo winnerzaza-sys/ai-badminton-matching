@@ -59,7 +59,7 @@ function createTeams(
 }
 
 /**
- * Deterministic stand-in for the future Qwen generator. It fills a rotating
+ * Deterministic stand-in for the remote AI generator. It fills a rotating
  * window of player slots, which guarantees the pre-calculated fairness target.
  */
 export class MockScheduleGenerator implements ScheduleGenerator {
@@ -111,9 +111,12 @@ export class MockScheduleGenerator implements ScheduleGenerator {
     }
 
     return {
-      id: `mock-${Date.now()}-${variant}`,
+      id: `algorithm-${Date.now()}-${variant}`,
       generatedAt: new Date().toISOString(),
       rounds,
     };
   }
 }
+
+/** Production name for the deterministic local scheduling algorithm. */
+export class AlgorithmScheduleGenerator extends MockScheduleGenerator {}

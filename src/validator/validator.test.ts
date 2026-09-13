@@ -69,6 +69,24 @@ describe('validateSchedule structural checks', () => {
     const result = validateSchedule(schedule, input);
     expect(result.errors.some((issue) => issue.code === 'INCORRECT_ROUND_COUNT')).toBe(true);
   });
+
+  it('detects an inconsistent resting-player list', async () => {
+    const input = inputFor(9);
+    const schedule = await new MockScheduleGenerator().generate(input);
+    schedule.rounds[0].restingPlayerIds = schedule.rounds[0].restingPlayerIds.slice(1);
+    const result = validateSchedule(schedule, input);
+    expect(result.errors.some((issue) => issue.code === 'RESTING_PLAYERS_MISSING')).toBe(true);
+  });
+
+  it('detects incorrect round and court numbering', async () => {
+    const input = inputFor();
+    const schedule = await new MockScheduleGenerator().generate(input);
+    schedule.rounds[0].round = 2;
+    schedule.rounds[0].courts[0].court = 2;
+    const result = validateSchedule(schedule, input);
+    expect(result.errors.some((issue) => issue.code === 'INCORRECT_ROUND_NUMBER')).toBe(true);
+    expect(result.errors.some((issue) => issue.code === 'INCORRECT_COURT_NUMBER')).toBe(true);
+  });
 });
 
 describe('validateSchedule fairness checks', () => {

@@ -19,7 +19,26 @@ export function validateSchedule(
     });
   }
 
-  schedule.rounds.forEach((round) => {
+  schedule.rounds.forEach((round, roundIndex) => {
+    if (round.round !== roundIndex + 1) {
+      errors.push({
+        code: 'INCORRECT_ROUND_NUMBER',
+        message: `ลำดับรอบที่ ${roundIndex + 1} ต้องใช้หมายเลข ${roundIndex + 1}`,
+        severity: 'error' as const,
+        round: round.round,
+      });
+    }
+    round.courts.forEach((court, courtIndex) => {
+      if (court.court !== courtIndex + 1) {
+        errors.push({
+          code: 'INCORRECT_COURT_NUMBER',
+          message: `รอบ ${round.round} ต้องเรียงหมายเลขคอร์ทตั้งแต่ 1`,
+          severity: 'error' as const,
+          round: round.round,
+          court: court.court,
+        });
+      }
+    });
     errors.push(...validateRound(round, input.players, input.courts));
   });
 

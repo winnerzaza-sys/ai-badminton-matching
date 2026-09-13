@@ -14,6 +14,7 @@ interface ScheduleSummaryProps {
   validation: ValidationResult | null;
   canGenerate: boolean;
   onGenerate: () => void;
+  onRegenerate: () => void;
   onEdit: () => void;
 }
 
@@ -52,7 +53,7 @@ export function ScheduleSummary(props: ScheduleSummaryProps) {
         </div>
       )}
 
-      {props.validation && (
+      {props.schedule && props.validation && (
         <>
           <div className="quality-block">
             <h3>สถิติคุณภาพตาราง</h3>
@@ -83,11 +84,11 @@ export function ScheduleSummary(props: ScheduleSummaryProps) {
           type="button"
           className="primary-action"
           disabled={!props.canGenerate}
-          onClick={props.onGenerate}
+          onClick={props.schedule ? props.onRegenerate : props.onGenerate}
         ><span>✦</span>{props.schedule ? 'จัดตารางใหม่' : 'AI จัดตาราง'}<small>ปรับตามผู้เล่นและกติกา</small></button>
         {props.schedule && (
           <div className="secondary-actions">
-            <button type="button" onClick={props.onGenerate}><RefreshIcon /> สุ่มใหม่</button>
+            <button type="button" onClick={props.onRegenerate}><RefreshIcon /> สุ่มใหม่</button>
             <button type="button" onClick={props.onEdit}>✎ แก้กติกา</button>
           </div>
         )}

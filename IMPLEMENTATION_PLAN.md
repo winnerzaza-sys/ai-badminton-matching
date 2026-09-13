@@ -2,7 +2,7 @@
 
 ## 1. Product Goal
 
-Build a mobile-first badminton match scheduling web app that uses a **local LLM (Qwen via WebLLM)** to generate the **complete multi-round schedule**, then uses deterministic JavaScript validation to verify correctness and request automatic repair when needed.
+Build a mobile-first badminton match scheduling web app that uses **Gemini through a secure Vercel Function** to generate the **complete multi-round schedule**, then uses deterministic JavaScript validation to verify correctness and request automatic repair when needed.
 
 The product is designed for real use beside a badminton court. The main workflow must be fast:
 
@@ -43,7 +43,9 @@ Fairness Configuration
 +
 Optional Natural-Language Instruction
              ↓
-          Qwen LLM
+      Vercel Function
+             ↓
+          Gemini API
              ↓
       Full Schedule JSON
              ↓
@@ -54,17 +56,18 @@ Optional Natural-Language Instruction
       Valid     Invalid
         │         │
         ▼         ▼
-      Result   Repair Prompt
+      Result   Local Repair Algorithm
                   │
                   ▼
-                Qwen
+              Validator
                   │
-                  └──→ Validator
+                  └──→ Result or clear error
 ```
 
 Important:
 
-- Qwen is responsible for generating the full schedule.
+- Gemini is responsible for generating the full schedule.
+- The browser calls a same-origin Vercel Function; the Gemini API key never enters the client bundle.
 - JavaScript is responsible for validating correctness.
 - Validation is mandatory.
 - Do not display an unvalidated AI schedule.
@@ -83,7 +86,7 @@ export interface ScheduleGenerator {
 Initial implementation:
 
 ```ts
-class QwenScheduleGenerator implements ScheduleGenerator
+class GeminiScheduleGenerator implements ScheduleGenerator
 ```
 
 Future fallback implementation may be:
@@ -106,17 +109,18 @@ The UI must not need to change if the schedule engine changes later.
 - Tailwind CSS
 - Responsive mobile-first layout
 
-## Local AI
+## Server-side AI
 
-- `@mlc-ai/web-llm`
-- WebGPU
-- Web Worker
-- Start POC with Qwen3 1.7B quantized model
+- `@google/genai`
+- Gemini API
+- Vercel Function under `/api`
+- `GEMINI_API_KEY` stored as a server-side environment variable
+- Start with the stable `gemini-3.5-flash` model
 
 Keep model configuration isolated:
 
 ```ts
-export const AI_MODEL = "Qwen3-1.7B-q4f16_1-MLC";
+export const AI_MODEL = "gemini-3.5-flash";
 ```
 
 Do not hard-code model names throughout the application.
@@ -126,13 +130,13 @@ The architecture must allow replacing the model later.
 Possible evaluation path:
 
 ```text
-Qwen3 1.7B
+gemini-3.5-flash
 ↓
-If mobile memory/performance is unacceptable:
-test smaller compatible Qwen model
+If latency or cost is unacceptable:
+test a compatible Flash-Lite model
 ↓
 If schedule reliability is insufficient:
-test larger model or deterministic fallback
+test a stronger stable Gemini model or deterministic fallback
 ```
 
 ## Storage
@@ -140,10 +144,25 @@ test larger model or deterministic fallback
 MVP:
 
 - localStorage for current session
-- Browser model cache for local AI
-- No backend required
 - No database server required
-- No API key required
+- Vercel Function for server-side Gemini requests
+- Gemini API key stored only in Vercel environment variables
+
+## Environment and Deployment
+
+Local development uses `.env.local`:
+
+```env
+GEMINI_API_KEY=your_server_side_key
+GEMINI_MODEL=gemini-3.5-flash
+```
+
+Never prefix the secret with `VITE_`; Vite exposes `VITE_*` values to browser code.
+Run `npx vercel dev` when testing the `/api/generate-schedule` function locally.
+
+Configure `GEMINI_API_KEY` separately for the Vercel Development, Preview, and Production
+environments, then redeploy. The frontend must call the same-origin API route and must never
+receive or forward the API key.
 
 ---
 
@@ -578,11 +597,11 @@ Example UI:
 
 # 10. Important Fairness Rule
 
-Qwen MUST NOT decide how many rounds should exist.
+Gemini MUST NOT decide how many rounds should exist.
 
 JavaScript calculates the fairness target first.
 
-Send Qwen:
+Send Gemini:
 
 ```json
 {
@@ -608,7 +627,7 @@ Or:
 }
 ```
 
-Qwen's responsibility is to distribute players across the required rounds.
+Gemini's responsibility is to distribute players across the required rounds.
 
 ---
 
@@ -642,7 +661,7 @@ The user should not need to learn special command syntax.
 
 # 12. Schedule Generation Input
 
-Build a structured object before invoking Qwen.
+Build a structured object before invoking Gemini.
 
 Example:
 
@@ -683,9 +702,9 @@ Example:
 
 ---
 
-# 13. Qwen Responsibilities
+# 13. Gemini Responsibilities
 
-Qwen must:
+Gemini must:
 
 1. Read all supplied players.
 2. Use only supplied player IDs.
@@ -701,7 +720,7 @@ Qwen must:
 12. Return the COMPLETE schedule.
 13. Return JSON only.
 
-Qwen must NOT:
+Gemini must NOT:
 
 - invent players
 - change total round count
@@ -891,7 +910,7 @@ The validator and quality metrics must NOT penalize the fixed pair as an unwante
 
 # 18. JavaScript Validator
 
-Build the validator BEFORE connecting Qwen.
+Build the validator BEFORE connecting Gemini.
 
 Suggested structure:
 
@@ -1008,12 +1027,12 @@ THREE_MALE_ONE_FEMALE
 
 ---
 
-# 20. Auto Repair
+# 20. Local Auto Repair
 
 If validation fails:
 
 ```text
-Qwen
+Gemini (one request)
 ↓
 Schedule
 ↓
@@ -1021,40 +1040,21 @@ Validator
 ↓
 Invalid
 ↓
-Repair Prompt
-↓
-Qwen
+Deterministic local repair
 ↓
 Corrected Full Schedule
 ↓
 Validator
 ```
 
-Example repair prompt:
+Gemini must not be called repeatedly for repair. If a fairness-only repair is
+possible, swap eligible active/resting players locally and revalidate every
+candidate. For other invalid schedules without free-form instructions, generate
+a deterministic local fallback and validate it before display.
 
-```text
-Your schedule is invalid.
-
-Fix the existing schedule.
-
-Return the COMPLETE corrected schedule as JSON only.
-
-Keep as much of the existing schedule unchanged as possible.
-
-Validation errors:
-
-- p3 plays only 1 game; minimum is 2.
-- p4 plays 4 games while p8 plays 2; allowed difference is 1.
-- p1 appears twice in round 4.
-```
-
-Maximum attempts:
-
-```ts
-const MAX_REPAIR_ATTEMPTS = 3;
-```
-
-Never allow infinite repair loops.
+If Gemini is unavailable or rate-limited and there is no free-form instruction,
+use the deterministic local generator immediately. Never display a local fallback
+that fails validation or may silently ignore a free-form instruction.
 
 If repair still fails:
 
@@ -1066,41 +1066,30 @@ Show a clear, non-technical explanation of the conflicting conditions when possi
 
 ---
 
-# 21. AI Loading UX
+# 21. AI Connection UX
 
-Do not load the AI model immediately on app startup.
-
-Load it when the user first requests AI schedule generation.
+Do not call Gemini on app startup. Connect only when the user requests schedule generation.
 
 Example:
 
 ```text
 ✨ เปิดใช้งาน Badminton AI
 
-AI จะทำงานบนอุปกรณ์นี้
-ต้องดาวน์โหลดโมเดลในครั้งแรก
+AI จะเชื่อมต่ออย่างปลอดภัยเมื่อเริ่มจัดตาราง
+API key จะไม่ถูกส่งมาที่เบราว์เซอร์
 
-แนะนำให้ใช้ Wi-Fi
-
-[ ดาวน์โหลดและเริ่มใช้งาน ]
+[ เริ่มจัดตาราง ]
 ```
 
-During loading:
+During connection:
 
 ```text
 กำลังเตรียม AI
 
-████████░░ 72%
+กำลังเชื่อมต่อบริการ AI
 ```
 
-Avoid technical terminology such as:
-
-- model weights
-- VRAM
-- tokens
-- quantization
-
-in the normal user interface.
+Avoid exposing provider errors, API key details, token counts, or other infrastructure terminology in the normal user interface.
 
 ---
 
@@ -1125,14 +1114,14 @@ If repair is happening, show:
 กำลังปรับตารางให้ลงตัว...
 ```
 
-Do not show "AI error" unless all automatic repair attempts fail.
+Do not show an AI error when a validated local fallback can be returned safely.
 
 Suggested status type:
 
 ```ts
 type AIStatus =
   | "idle"
-  | "loading-model"
+  | "connecting"
   | "generating"
   | "validating"
   | "repairing"
@@ -1441,7 +1430,7 @@ Implement:
 - localStorage
 - design references
 
-Do not connect Qwen yet.
+Do not connect Gemini yet.
 
 Acceptance:
 
@@ -1519,22 +1508,23 @@ Implement:
 
 ---
 
-## MVP 5 — Qwen / WebLLM Integration
+## MVP 5 — Gemini / Vercel Function Integration
 
 Install:
 
 ```bash
-npm install @mlc-ai/web-llm
+npm install @google/genai
 ```
 
 Implement:
 
-- local model loader
-- Web Worker
-- load progress
+- server-side Vercel Function at `/api/generate-schedule`
+- `GEMINI_API_KEY` read from server-side environment variables
+- browser API client without secrets
+- connection progress
 - structured JSON output
 - prompt builder
-- Qwen3 1.7B configuration
+- Gemini model configuration with `gemini-3.5-flash` as the default
 
 ---
 
@@ -1549,7 +1539,7 @@ Fairness Plan
 ↓
 Prompt Builder
 ↓
-Qwen
+Gemini via Vercel Function
 ↓
 Schedule JSON
 ↓
@@ -1560,21 +1550,26 @@ Only display valid schedules.
 
 ---
 
-## MVP 7 — Auto Repair
+## MVP 7 — Local Auto Repair
 
 Implement:
 
 ```text
 Validation Errors
 ↓
-Repair Prompt
-↓
-Qwen
+Deterministic Local Repair
 ↓
 Validator
 ```
 
-Maximum 3 repair attempts.
+Gemini is called at most once per generate action. If the provider is unavailable
+or rate-limited, use a validated deterministic fallback when no free-form
+instruction could be lost.
+
+After a valid schedule exists, “Regenerate” uses the local deterministic
+algorithm directly (zero Gemini requests). If a free-form instruction is set,
+the local result carries a warning because that instruction cannot be verified
+as applied by the deterministic algorithm.
 
 ---
 
@@ -1710,7 +1705,7 @@ Track:
 ```text
 First-pass valid %
 Valid after repair %
-Average repair attempts
+Local recovery rate
 Generation time
 Repeated partner warnings
 Repeated opponent warnings
@@ -1734,10 +1729,10 @@ Do not hide persistent reliability problems behind repeated retries.
 
 # 34. Fallback Strategy
 
-If local Qwen:
+If Gemini:
 
-- is too slow on target mobile devices
-- uses too much memory
+- has unacceptable latency or cost
+- reaches provider quota or rate limits
 - fails frequently
 - cannot repair reliably
 
@@ -1790,8 +1785,8 @@ The MVP is complete when:
 2. Court count can be selected.
 3. Balanced fairness works for odd and even player counts.
 4. Exact fairness mode works.
-5. Fairness rounds are calculated before invoking Qwen.
-6. Qwen generates the complete multi-round schedule.
+5. Fairness rounds are calculated before invoking Gemini.
+6. Gemini generates the complete multi-round schedule through a Vercel Function.
 7. Validator checks every result.
 8. Invalid schedules are automatically repaired.
 9. Fixed pair works.
@@ -1804,10 +1799,10 @@ The MVP is complete when:
 16. Full schedule is visible in advance.
 17. Mobile layout follows the provided mobile design.
 18. iPad layout follows the provided iPad design.
-19. No API key is required.
-20. No backend is required for MVP.
-21. Local AI runs in the browser.
-22. UI remains usable if a future scheduler engine replaces Qwen.
+19. The Gemini API key exists only in server-side environment variables.
+20. The browser calls the same-origin `/api/generate-schedule` endpoint.
+21. Vercel Preview and Production environments are configured independently.
+22. UI remains usable if a future scheduler engine replaces Gemini.
 
 ---
 
@@ -1815,7 +1810,7 @@ The MVP is complete when:
 
 Start with UI, fairness, and validation.
 
-Do NOT integrate WebLLM first.
+Do NOT integrate Gemini first.
 
 Use this instruction:
 
@@ -1841,7 +1836,7 @@ Implement MVP 1 through MVP 4 only:
 8. Deterministic schedule validator
 9. Schedule result UI using mocked valid schedules
 
-Do NOT integrate WebLLM or Qwen yet.
+Do NOT integrate Gemini or a serverless function yet.
 
 Add automated tests for the fairness calculations and validator.
 ```
@@ -1853,13 +1848,13 @@ Read IMPLEMENTATION_PLAN.md.
 
 Implement MVP 5 through MVP 7:
 
-1. WebLLM integration
-2. Qwen3 local model loader
-3. Web Worker inference
-4. Full schedule JSON generation
+1. Gemini integration through a Vercel Function
+2. Server-only `GEMINI_API_KEY` environment variable
+3. Browser API client with no bundled secret
+4. Full schedule structured JSON generation
 5. Validator integration
-6. Automatic repair loop with maximum 3 attempts
-7. User-friendly generate / validate / repair UI states
+6. One deterministic local repair/fallback attempt without another Gemini request
+7. User-friendly connect / generate / validate / repair UI states
 
 Do not change the existing visual design unless required for functionality.
 ```

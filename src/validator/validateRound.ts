@@ -69,5 +69,53 @@ export function validateRound(
     }
   });
 
+  const duplicateRestingIds = round.restingPlayerIds.filter(
+    (id, index, ids) => ids.indexOf(id) !== index,
+  );
+  if (duplicateRestingIds.length > 0) {
+    issues.push({
+      code: 'PLAYER_DUPLICATED_IN_REST_LIST',
+      message: `รายชื่อผู้เล่นพักในรอบ ${round.round} มีข้อมูลซ้ำ`,
+      severity: 'error',
+      round: round.round,
+      playerIds: [...new Set(duplicateRestingIds)],
+    });
+  }
+
+  const restingSet = new Set(round.restingPlayerIds);
+  round.restingPlayerIds.forEach((id) => {
+    if (!validIds.has(id)) {
+      issues.push({
+        code: 'INVALID_RESTING_PLAYER_ID',
+        message: `ไม่พบผู้เล่นรหัส ${id} ในรายชื่อผู้เล่นพัก`,
+        severity: 'error',
+        round: round.round,
+        playerIds: [id],
+      });
+    }
+    if (seenInRound.has(id)) {
+      issues.push({
+        code: 'PLAYING_PLAYER_MARKED_RESTING',
+        message: `ผู้เล่น ${id} ถูกระบุว่าทั้งเล่นและพักในรอบ ${round.round}`,
+        severity: 'error',
+        round: round.round,
+        playerIds: [id],
+      });
+    }
+  });
+
+  const missingRestingIds = players
+    .map((player) => player.id)
+    .filter((id) => !seenInRound.has(id) && !restingSet.has(id));
+  if (missingRestingIds.length > 0) {
+    issues.push({
+      code: 'RESTING_PLAYERS_MISSING',
+      message: `รายชื่อผู้เล่นพักในรอบ ${round.round} ไม่ครบ`,
+      severity: 'error',
+      round: round.round,
+      playerIds: missingRestingIds,
+    });
+  }
+
   return issues;
 }

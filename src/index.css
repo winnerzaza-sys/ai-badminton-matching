@@ -183,8 +183,11 @@ h1, h2, h3,
 .shuttle-loader { width: 82px; height: 82px; display: grid; place-items: center; border-radius: 50%; background: #e9f8f1; color: #159a66; font-size: 2.1rem; animation: breathe 1.4s ease-in-out infinite; }
 .progress-track { width: min(310px,85%); height: 7px; margin: 20px 0 15px; overflow: hidden; border-radius: 8px; background: #e5ece9; }
 .progress-track span { display: block; width: 72%; height: 100%; border-radius: inherit; background: linear-gradient(90deg,#159a66,#5dcc9b); animation: progress 1.1s ease-in-out infinite alternate; }
+.progress-track.determinate span { animation: none; transition: width .2s ease; }
+.connection-percent { margin-top: -8px; color: #0b8354; font-size: .78rem; }
 .progress-steps { display: grid; gap: 6px; text-align: left; color: #7f8da1; font-size: .78rem; }
 .progress-steps .done { color: #17865b; }
+.progress-steps .active { color: #31506e; font-weight: 700; }
 @keyframes breathe { 50% { transform: scale(1.06); } }
 @keyframes progress { from { width: 35%; } to { width: 88%; } }
 

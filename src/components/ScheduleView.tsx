@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { AIProgress } from '../ai';
 import type { Player, Round, Schedule, ValidationResult } from '../types';
 import { CheckIcon } from '../lib/icons';
 
@@ -6,7 +7,7 @@ interface ScheduleViewProps {
   schedule: Schedule | null;
   players: Player[];
   validation: ValidationResult | null;
-  isGenerating: boolean;
+  aiProgress: AIProgress;
 }
 
 function PlayerChip({ id, playerMap }: { id: string; playerMap: Map<string, Player> }) {
@@ -50,7 +51,7 @@ function RoundContent({ round, playerMap }: { round: Round; playerMap: Map<strin
   );
 }
 
-export function ScheduleView({ schedule, players, validation, isGenerating }: ScheduleViewProps) {
+export function ScheduleView({ schedule, players, validation, aiProgress }: ScheduleViewProps) {
   const [openRounds, setOpenRounds] = useState<Set<number>>(new Set());
   const playerMap = useMemo(() => new Map(players.map((player) => [player.id, player])), [players]);
 
@@ -67,17 +68,39 @@ export function ScheduleView({ schedule, players, validation, isGenerating }: Sc
     });
   };
 
-  if (isGenerating) {
+  const isBusy = ['connecting', 'generating', 'validating', 'repairing'].includes(aiProgress.status);
+
+  if (isBusy) {
+    const connecting = aiProgress.status === 'connecting';
+    const heading = connecting
+      ? 'กำลังเตรียม AI'
+      : aiProgress.status === 'repairing'
+        ? 'กำลังปรับตารางให้ลงตัว…'
+        : aiProgress.status === 'validating'
+          ? 'กำลังตรวจความสมดุล…'
+          : 'AI กำลังวางตาราง…';
+    const detail = connecting
+      ? 'กำลังเชื่อมต่อบริการ AI อย่างปลอดภัย'
+      : aiProgress.status === 'repairing'
+        ? 'กำลังซ่อมหรือสร้างตารางสำรองด้วยอัลกอริทึมในเครื่อง'
+        : 'จัดทุกรอบและตรวจเงื่อนไขก่อนแสดงผล';
     return (
       <section className="panel schedule-panel generation-state" id="schedule" aria-live="polite">
         <div className="shuttle-loader"><span>◢</span></div>
-        <h2>กำลังวางตาราง…</h2>
-        <p>จัดรอบและตรวจความสมดุลให้ทุกคน</p>
-        <div className="progress-track"><span /></div>
+        <h2>{heading}</h2>
+        <p>{detail}</p>
+        <div className={`progress-track ${connecting ? 'determinate' : ''}`}>
+          <span style={connecting ? { width: `${Math.round(aiProgress.connectionProgress * 100)}%` } : undefined} />
+        </div>
+        {connecting && <strong className="connection-percent">{Math.round(aiProgress.connectionProgress * 100)}%</strong>}
         <div className="progress-steps">
           <span className="done">✓ เตรียมข้อมูลผู้เล่น</span>
-          <span className="done">✓ กำลังจัดรอบ</span>
-          <span>○ กำลังตรวจความสมดุล</span>
+          <span className={connecting ? 'active' : 'done'}>{connecting ? '○' : '✓'} เชื่อมต่อบริการ AI</span>
+          <span className={['validating', 'repairing'].includes(aiProgress.status) ? 'done' : ''}>{aiProgress.status === 'generating' ? '○' : '✓'} จัดตารางครบทุกรอบ</span>
+          <span className={aiProgress.status === 'validating' ? 'active' : ''}>○ ตรวจความสมดุลและเงื่อนไข</span>
+          {aiProgress.repairAttempt > 0 && (
+            <span className={aiProgress.status === 'repairing' ? 'active' : ''}>○ ปรับตารางอัตโนมัติ</span>
+          )}
         </div>
       </section>
     );

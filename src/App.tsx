@@ -1,25 +1,36 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  GeminiScheduleGenerator,
+  generateValidatedSchedule,
+  ScheduleGenerationError,
+  type AIProgress,
+} from './ai';
 import { ConfigPanel } from './components/ConfigPanel';
 import { FairnessPreview } from './components/FairnessPreview';
 import { PlayerPanel } from './components/PlayerPanel';
 import { ScheduleSummary } from './components/ScheduleSummary';
 import { ScheduleView } from './components/ScheduleView';
 import { calculateBalancedPlan, calculateExactCycle } from './fairness';
-import { MockScheduleGenerator } from './generator';
 import { BrandMark, ChartIcon, CourtIcon, UsersIcon } from './lib/icons';
 import { useSessionStore } from './store/sessionStore';
 import type { FairnessConfig, Schedule, ValidationResult } from './types';
-import { validateSchedule } from './validator';
 
-const generator = new MockScheduleGenerator();
+const generator = new GeminiScheduleGenerator();
+const initialAIProgress: AIProgress = {
+  status: 'idle',
+  connectionProgress: 0,
+  repairAttempt: 0,
+};
 
 function App() {
   const [session, setSession] = useSessionStore();
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [aiProgress, setAIProgress] = useState<AIProgress>(initialAIProgress);
   const [generationError, setGenerationError] = useState('');
   const variantRef = useRef(0);
+  const generationInFlightRef = useRef(false);
+  const isGenerating = ['connecting', 'generating', 'validating', 'repairing'].includes(aiProgress.status);
 
   useEffect(() => {
     const maxCourts = Math.max(1, Math.floor(session.players.length / 4));
@@ -49,10 +60,13 @@ function App() {
     }
   }, [session.courts, session.fairnessMode, session.players.length]);
 
-  const generate = async () => {
-    if (!fairness || isGenerating) return;
+  const generateSchedule = async (preferLocal: boolean) => {
+    if (!fairness || generationInFlightRef.current) return;
+    generationInFlightRef.current = true;
     setGenerationError('');
-    setIsGenerating(true);
+    setSchedule(null);
+    setValidation(null);
+    setAIProgress({ status: 'connecting', connectionProgress: 0, repairAttempt: 0 });
     variantRef.current += 1;
     const input = {
       players: session.players,
@@ -64,26 +78,36 @@ function App() {
     };
 
     try {
-      await new Promise((resolve) => window.setTimeout(resolve, 520));
-      const nextSchedule = await generator.generate(input);
-      const result = validateSchedule(nextSchedule, input);
-      if (!result.valid) {
-        setSchedule(null);
-        setValidation(result);
-        setGenerationError('ตารางตัวอย่างไม่ผ่านการตรวจสอบ กรุณาลองอีกครั้ง');
-        return;
-      }
-      setSchedule(nextSchedule);
-      setValidation(result);
+      const result = await generateValidatedSchedule(
+        generator,
+        input,
+        setAIProgress,
+        { preferLocal },
+      );
+      setSchedule(result.schedule);
+      setValidation(result.validation);
       window.setTimeout(() => {
         document.getElementById('schedule')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }, 50);
     } catch (error) {
-      setGenerationError(error instanceof Error ? error.message : 'ไม่สามารถจัดตารางได้');
+      setAIProgress((current) => ({ ...current, status: 'failed' }));
+      if (error instanceof ScheduleGenerationError) {
+        setValidation(error.validation);
+        const details = error.validation?.errors
+          .slice(0, 2)
+          .map((issue) => issue.message)
+          .join(' • ');
+        setGenerationError(details ? `${error.message} (${details})` : error.message);
+      } else {
+        setGenerationError(error instanceof Error ? error.message : 'ไม่สามารถจัดตารางได้');
+      }
     } finally {
-      setIsGenerating(false);
+      generationInFlightRef.current = false;
     }
   };
+
+  const generate = () => generateSchedule(false);
+  const regenerate = () => generateSchedule(true);
 
   const editRules = () => {
     document.getElementById('rules')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -131,14 +155,14 @@ function App() {
             className="mobile-generate"
             type="button"
             disabled={!fairness || isGenerating}
-            onClick={generate}
+            onClick={schedule ? regenerate : generate}
           ><span>✦</span>{schedule ? 'จัดตารางใหม่' : 'AI จัดตาราง'}</button>
           {generationError && <div className="inline-error" role="alert">{generationError}</div>}
           <ScheduleView
             schedule={schedule}
             players={session.players}
             validation={validation}
-            isGenerating={isGenerating}
+            aiProgress={aiProgress}
           />
         </div>
 
@@ -150,6 +174,7 @@ function App() {
           validation={validation}
           canGenerate={Boolean(fairness) && !isGenerating}
           onGenerate={generate}
+          onRegenerate={regenerate}
           onEdit={editRules}
         />
       </main>
